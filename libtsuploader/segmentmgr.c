@@ -31,7 +31,7 @@ typedef struct {
         void *pUploadStatArg;
         int64_t nNextUpdateSegTimeInSecond;
         LinkSession tmpSession; //TODO backup report info when next report time is not arrival
-        LinkSessionMeta* pSessionMeta;
+        const LinkSessionMeta* pSessionMeta;
 }Seg;
 
 typedef struct {

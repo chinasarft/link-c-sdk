@@ -33,6 +33,23 @@ typedef struct _TsUploaderMeta {
         LinkKeyFrameMetaInfo metaInfo[10];
         int nMetaInfoLen;
 }TsUploaderMeta;
+typedef struct _KodoUploader KodoUploader;
+typedef struct _TsUploaderCommandTs {
+        void *pData;
+        KodoUploader *pKodoUploader;
+        TsUploaderMeta* pUpMeta;
+}TsUploaderCommandTs;
+
+typedef struct _TsUploaderCommand {
+        enum LinkTsuCmdType nCommandType;
+        union{
+                TsUploaderCommandTs ts;
+                LinkReportTimeInfo time;
+                LinkSessionMeta *pSessionMeta;
+                LinkPlanType planType;
+                LinkPicture pic;
+        };
+}TsUploaderCommand;
 
 typedef struct _KodoUploader{
         LinkTsUploader uploader;
@@ -74,26 +91,13 @@ typedef struct _KodoUploader{
         LinkTsOutput output;
         void *pOutputUserArg;
         LinkMediaArg mediaArg;
+
         LinkSessionMeta *pSessionMeta;
         LinkPicture picture;
+        
+        TsUploaderCommand cmd;
+        int8_t cmdIsPending;
 }KodoUploader;
-
-typedef struct _TsUploaderCommandTs {
-        void *pData;
-        KodoUploader *pKodoUploader;
-        TsUploaderMeta* pUpMeta;
-}TsUploaderCommandTs;
-
-typedef struct _TsUploaderCommand {
-        enum LinkTsuCmdType nCommandType;
-        union{
-                TsUploaderCommandTs ts;
-                LinkReportTimeInfo time;
-                LinkSessionMeta *pSessionMeta;
-                LinkPlanType planType;
-                LinkPicture pic;
-        };
-}TsUploaderCommand;
 
 static void handleSessionCheck(KodoUploader * pKodoUploader, int64_t nSysTimestamp, int isForceNewSession, int64_t nCurTsDuration);
 static void restoreDuration (KodoUploader * pKodoUploader);
