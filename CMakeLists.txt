@@ -245,6 +245,8 @@ endif()
 install(DIRECTORY ${PROJECT_SOURCE_DIR}/doc/
   DESTINATION doc
   )
+add_subdirectory( sample )
+add_subdirectory(libfastrtmp)
 
 # ------------------------------------------------------------------------------
 # Sample
