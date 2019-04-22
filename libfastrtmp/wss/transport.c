@@ -171,8 +171,8 @@ static void *wssWork(void *pOpaque) {
         pParam->pBuf[LWS_PRE+ret+3] = (ret & 0x0000FF00)>>8;
         pParam->pBuf[LWS_PRE+ret+4] = ret & 0xFF;
         
-        int (send_data*)(ghttp_request *, char *, int) = ghttp_websocket_send;
-        int (read_data*)(ghttp_request *, char *, int) = ghttp_websocket_recv;
+        int (*send_data)(ghttp_request *, char *, int) = ghttp_websocket_send;
+        int (*read_data)(ghttp_request *, char *, int) = ghttp_websocket_recv;
         if (pParam->transportType == TRANSPORT_WS_TYPE) {
                 send_data = ghttp_tcp_send;
                 read_data = ghttp_tcp_recv;
