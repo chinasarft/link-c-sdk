@@ -173,7 +173,7 @@ static void *wssWork(void *pOpaque) {
         
         int (*send_data)(ghttp_request *, char *, int) = ghttp_websocket_send;
         int (*read_data)(ghttp_request *, char *, int) = ghttp_websocket_recv;
-        if (pParam->transportType == TRANSPORT_WS_TYPE) {
+        if (pParam->transportType == TRANSPORT_TCP_TYPE) {
                 send_data = ghttp_tcp_send;
                 read_data = ghttp_tcp_recv;
         }
@@ -271,7 +271,7 @@ int FRtmpWssInit(const char *pWsUrl, int nWsUrlLen, int nTimeoutInSecs, const Rt
                 pParam->useSSL = 1;
         } else if (memcmp("tcp://", pWsUrl, 6) == 0) {
                 memcpy(pParam->pUri, "http://", 7);
-                memcpy(pParam->pUri+7, pWsUrl+5, nWsUrlLen-5);
+                memcpy(pParam->pUri+7, pWsUrl+6, nWsUrlLen-6);
                 pParam->transportType = TRANSPORT_TCP_TYPE;
         } else if (memcmp("tls://", pWsUrl, 6) == 0) {
                 memcpy(pParam->pUri, "https://", 8);
@@ -306,6 +306,13 @@ int FRtmpWssInit(const char *pWsUrl, int nWsUrlLen, int nTimeoutInSecs, const Rt
                 ghttp_set_global_cert_file_path(pParam->rtmpSettings.pCertFile, NULL);
         }
         ret = ghttp_set_uri(pParam->pRequest , pParam->pUri);
+        if (ret != 0) {
+                LinkLogError("ghttp_set_uri fail");
+                LinkDestroyQueue(&pParam->pQueue);
+                ghttp_request_destroy(pParam->pRequest);
+                free(pParam);
+                return -4;
+        }
         ghttp_set_timeout(pParam->pRequest, nTimeoutInSecs);
         ghttp_status status = 0;
         if (pParam->transportType == TRANSPORT_WS_TYPE)
@@ -314,9 +321,9 @@ int FRtmpWssInit(const char *pWsUrl, int nWsUrlLen, int nTimeoutInSecs, const Rt
                 status = ghttp_process_downgrade_tcp(pParam->pRequest);
         if (status == ghttp_error) {
                 if (ghttp_is_timeout(pParam->pRequest)) {
-                        LinkLogError("ghttp_process_upgrade_websocket timeout[%s]\n", ghttp_get_error(pParam->pRequest));
+                        LinkLogError("%s timeout[%s]\n", pParam->transportType == TRANSPORT_WS_TYPE ? "ghttp_process_upgrade_websocket":"ghttp_process_downgrade_tcp", ghttp_get_error(pParam->pRequest));
                 } else {
-                        LinkLogError("ghttp_process_upgrade_websocket:%s\n", ghttp_get_error(pParam->pRequest));
+                        LinkLogError("%s :%s", pParam->transportType == TRANSPORT_WS_TYPE ? "ghttp_process_upgrade_websocket":"ghttp_process_downgrade_tcp", ghttp_get_error(pParam->pRequest));
                 }
                 ghttp_request_destroy(pParam->pRequest);
                 LinkDestroyQueue(&pParam->pQueue);

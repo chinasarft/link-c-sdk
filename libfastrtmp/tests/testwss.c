@@ -263,7 +263,10 @@ int main(int argc, const char **argv) {
 	int justAudio = 0, execTime = 600000, timeout = 10;
         Flv flv;
         memset(&flv, 0, sizeof(flv));
+        int crypto = 0;
         
+        if (lws_cmdline_option1(argc, argv, "-c"))
+                crypto = 1;
         if (lws_cmdline_option1(argc, argv, "-ja"))
 		justAudio = 1;
         if ((p = lws_cmdline_option1(argc, argv, "-jt")))
@@ -291,9 +294,12 @@ int main(int argc, const char **argv) {
         }
 
         
-        if (!(p = lws_cmdline_option1(argc, argv, "-ws")))
-                //p = "ws://100.100.33.24:1977/live/testlmk.wsrtmp";
-                p = "wss://wss-publish-test.cloudvdn.com/ly-live/lytest.wsrtmp";
+        if (!(p = lws_cmdline_option1(argc, argv, "-ws"))) {
+                if (crypto)
+                        p = "wss://wss-publish-test.cloudvdn.com/ly-live/lytest.wsrtmp";
+                else
+                        p = "ws://wss-publish-test.cloudvdn.com/ly-live/lytest.wsrtmp";
+        }
         fprintf(stderr, "ws url:%s\n", p);
         //const char* pWsUrl = "ws://127.0.0.1:8082/recv";
         const char *pWsUrl = p;
