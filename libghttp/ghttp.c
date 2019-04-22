@@ -52,7 +52,7 @@ struct _ghttp_request
   char               *proxy_authtoken;
   int                 secure_uri;
   int                 nTimeoutInSecond;
-  int                 isWs;
+  int                 conn_type;
 #if defined(WITH_OPENSSL) || defined(WITH_WOLFSSL)
   ghttp_ssl_cert_cb   cert_cb;
   void               *cert_cb_data;
@@ -466,7 +466,16 @@ ghttp_process_upgrade_websocket(ghttp_request *a_request) {
         ghttp_set_header(a_request, "Sec-WebSocket-Version", "13");
         ghttp_set_header(a_request, "Upgrade", "websocket");
         ghttp_set_header(a_request, "Sec-WebSocket-Key", key);
-        a_request->isWs = 1;
+        a_request->conn_type = 1;
+        int ret = ghttp_prepare(a_request);
+        if (ret != 0)
+                return ret;
+        return ghttp_process(a_request);
+}
+
+ghttp_status
+ghttp_process_downgrade_tcp(ghttp_request *a_request) {
+        a_request->conn_type = 2;
         int ret = ghttp_prepare(a_request);
         if (ret != 0)
                 return ret;
@@ -513,8 +522,16 @@ int ghttp_websocket_send(ghttp_request *a_request, char *data, int len) {
         return http_req_send_websocket(a_request->req, a_request->conn, data-i, len+i);
 }
 
+int ghttp_tcp_send(ghttp_request *a_request, char *data, int len) {
+        return http_req_send_tcp(a_request->req, a_request->conn, data, len);
+}
+
 int  ghttp_websocket_recv(ghttp_request *a_request, char * msg, int len) {
         return http_req_read_websocket(a_request->req, a_request->conn, msg, len);
+}
+
+int  ghttp_tcp_recv(ghttp_request *a_request, char * msg, int len) {
+        return http_req_read_tcp(a_request->req, a_request->conn, msg, len);
 }
 
 ghttp_status
@@ -528,7 +545,7 @@ ghttp_process (ghttp_request *a_request)
     {
       if (a_request->connected == 0)
 	{
-	  if (http_trans_connect(a_request->conn, a_request->isWs) < 0)
+	  if (http_trans_connect(a_request->conn, a_request->conn_type) < 0)
 	    {
 	      if (a_request->conn->error_type == http_trans_err_type_errno)
 		a_request->errstr = strerror(a_request->conn->error);
@@ -574,6 +591,8 @@ ghttp_process (ghttp_request *a_request)
           a_request->connected = 1;
 #endif	  
 	}
+            if (a_request->conn_type == 2)
+                    return ghttp_not_done;
       l_rv = http_req_send(a_request->req, a_request->conn);
       if (l_rv == HTTP_TRANS_ERR)
 	return ghttp_error;
@@ -595,7 +614,7 @@ ghttp_process (ghttp_request *a_request)
 	return ghttp_not_done;
       if (l_rv == HTTP_TRANS_DONE)
 	{
-                if (a_request->isWs)
+                if (a_request->conn_type)
                         return ghttp_not_done;
 	  a_request->proc = ghttp_proc_response;
 	  if (a_request->conn->sync == HTTP_TRANS_ASYNC)

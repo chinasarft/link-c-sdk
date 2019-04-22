@@ -91,4 +91,10 @@ http_req_send_websocket(http_req *a_req, http_trans_conn *a_conn, char *data,int
 int
 http_req_read_websocket(http_req *a_req, http_trans_conn *a_conn, char * msg, int len);
 
+int
+http_req_send_tcp(http_req *a_req, http_trans_conn *a_conn, char *data,int len);
+
+int
+http_req_read_tcp(http_req *a_req, http_trans_conn *a_conn, char * msg, int len);
+
 #endif /* HTTP_REQ_H */

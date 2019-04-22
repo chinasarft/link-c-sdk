@@ -353,6 +353,11 @@ http_req_send_websocket(http_req *a_req, http_trans_conn *a_conn, char *data,int
         return 0;
 }
 
+int
+http_req_send_tcp(http_req *a_req, http_trans_conn *a_conn, char *data,int len) {
+        return http_req_send_websocket(a_req, a_conn, data, len);
+}
+
 static void set_rcv_timeout(int fd, int tm) {
         struct timeval tv;
         if (tm <= 0) {
@@ -447,5 +452,9 @@ int http_req_read_websocket(http_req *a_req, http_trans_conn *a_conn, char * msg
                 memcpy(msg, a_conn->io_buf, t);
         }
         msg[len - 1] = 0;
+        return 0;
+}
+
+int http_req_read_tcp(http_req *a_req, http_trans_conn *a_conn, char * msg, int len) {
         return 0;
 }

@@ -18,11 +18,15 @@ typedef struct _WssUrl {
         int nPort;
 }WssUrl;
 
+#define TRANSPORT_WS_TYPE 1
+#define TRANSPORT_TCP_TYPE 2
+
 typedef struct _RtmpWssParam {
         RtmpSettings rtmpSettings;
         int state;
         pthread_t workerId;
         unsigned char useSSL;
+        unsigned char transportType;
         WssUrl wssUrl;
         char *pUri;
         int interrupted;
@@ -167,7 +171,15 @@ static void *wssWork(void *pOpaque) {
         pParam->pBuf[LWS_PRE+ret+3] = (ret & 0x0000FF00)>>8;
         pParam->pBuf[LWS_PRE+ret+4] = ret & 0xFF;
         
-        ret = ghttp_websocket_send(pParam->pRequest, (char *)pMsg + LWS_PRE, ret + 5);
+        int (send_data*)(ghttp_request *, char *, int) = ghttp_websocket_send;
+        int (read_data*)(ghttp_request *, char *, int) = ghttp_websocket_recv;
+        if (pParam->transportType == TRANSPORT_WS_TYPE) {
+                send_data = ghttp_tcp_send;
+                read_data = ghttp_tcp_recv;
+        }
+                
+                
+        ret = send_data(pParam->pRequest, (char *)pMsg + LWS_PRE, ret + 5);
         if (ret != 0) {
                 if (ghttp_is_timeout(pParam->pRequest)) {
                         LinkLogError("send fastRtmpInfo fail timeout[%s]\n", ghttp_get_error(pParam->pRequest));
@@ -175,7 +187,7 @@ static void *wssWork(void *pOpaque) {
                         char msg[196];
                         int len = sizeof(msg);
                         memset(msg, 0, sizeof(msg));
-                        int r = ghttp_websocket_recv(pParam->pRequest, msg, len);
+                        int r = read_data(pParam->pRequest, msg, len);
                         if (r == 0)
                                 LinkLogError("send fastRtmpInfo fail:%s\n", msg);
                         else
@@ -205,7 +217,7 @@ static void *wssWork(void *pOpaque) {
                         continue;
                 }
                 
-                ret = ghttp_websocket_send(pParam->pRequest, amsg.payload+LWS_PRE, amsg.len);
+                ret = send_data(pParam->pRequest, amsg.payload+LWS_PRE, amsg.len);
                 destroy_message(&amsg, pParam);
                 if (ret != 0) {
                         if (ghttp_is_timeout(pParam->pRequest)) {
@@ -214,7 +226,7 @@ static void *wssWork(void *pOpaque) {
                                 char msg[196];
                                 int len = sizeof(msg);
                                 memset(msg, 0, sizeof(msg));
-                                int r = ghttp_websocket_recv(pParam->pRequest, msg, len);
+                                int r = read_data(pParam->pRequest, msg, len);
                                 if (r == 0)
                                         LinkLogError("send tag fail:%s\n", msg);
                                 else
@@ -248,7 +260,7 @@ int FRtmpWssInit(const char *pWsUrl, int nWsUrlLen, int nTimeoutInSecs, const Rt
                 LinkLogError("pParam == NULL\n");
                 return -1;
         }
-        
+        pParam->transportType = TRANSPORT_WS_TYPE;
         pParam->pUri = (char *)(pParam) + settingSize;
         if (memcmp("ws://", pWsUrl, 5) == 0) {
                 memcpy(pParam->pUri, "http://", 7);
@@ -256,6 +268,16 @@ int FRtmpWssInit(const char *pWsUrl, int nWsUrlLen, int nTimeoutInSecs, const Rt
         } else if (memcmp("wss://", pWsUrl, 6) == 0) {
                 memcpy(pParam->pUri, "https://", 8);
                 memcpy(pParam->pUri+8, pWsUrl+6, nWsUrlLen-6);
+                pParam->useSSL = 1;
+        } else if (memcmp("tcp://", pWsUrl, 6) == 0) {
+                memcpy(pParam->pUri, "http://", 7);
+                memcpy(pParam->pUri+7, pWsUrl+5, nWsUrlLen-5);
+                pParam->transportType = TRANSPORT_TCP_TYPE;
+        } else if (memcmp("tls://", pWsUrl, 6) == 0) {
+                memcpy(pParam->pUri, "https://", 8);
+                memcpy(pParam->pUri+8, pWsUrl+6, nWsUrlLen-6);
+                pParam->useSSL = 1;
+                pParam->transportType = TRANSPORT_TCP_TYPE;
         } else {
                 memcpy(pParam->pUri, pWsUrl, nWsUrlLen);
         }
@@ -285,7 +307,11 @@ int FRtmpWssInit(const char *pWsUrl, int nWsUrlLen, int nTimeoutInSecs, const Rt
         }
         ret = ghttp_set_uri(pParam->pRequest , pParam->pUri);
         ghttp_set_timeout(pParam->pRequest, nTimeoutInSecs);
-        ghttp_status status = ghttp_process_upgrade_websocket(pParam->pRequest);
+        ghttp_status status = 0;
+        if (pParam->transportType == TRANSPORT_WS_TYPE)
+                status = ghttp_process_upgrade_websocket(pParam->pRequest);
+        else
+                status = ghttp_process_downgrade_tcp(pParam->pRequest);
         if (status == ghttp_error) {
                 if (ghttp_is_timeout(pParam->pRequest)) {
                         LinkLogError("ghttp_process_upgrade_websocket timeout[%s]\n", ghttp_get_error(pParam->pRequest));
@@ -298,14 +324,15 @@ int FRtmpWssInit(const char *pWsUrl, int nWsUrlLen, int nTimeoutInSecs, const Rt
                 return -5;
         }
         
-       
-        int httpCode = ghttp_status_code(pParam->pRequest);
-        if (httpCode != 101) {
-                ghttp_request_destroy(pParam->pRequest);
-                LinkDestroyQueue(&pParam->pQueue);
-                free(pParam);
-                LinkLogError("http return code:%d\n", httpCode);
-                return -6;
+        if (pParam->transportType == TRANSPORT_WS_TYPE) {
+                int httpCode = ghttp_status_code(pParam->pRequest);
+                if (httpCode != 101) {
+                        ghttp_request_destroy(pParam->pRequest);
+                        LinkDestroyQueue(&pParam->pQueue);
+                        free(pParam);
+                        LinkLogError("http return code:%d\n", httpCode);
+                        return -6;
+                }
         }
         
         

@@ -167,6 +167,10 @@ ghttp_status
 ghttp_process_upgrade_websocket(ghttp_request *a_request);
 int ghttp_websocket_send(ghttp_request *a_request, char *data, int len);
 int ghttp_websocket_recv(ghttp_request *a_request, char * msg, int len);
+        
+ghttp_status ghttp_process_downgrade_tcp(ghttp_request *a_request);
+int ghttp_tcp_send(ghttp_request *a_request, char *data, int len);
+int ghttp_tcp_recv(ghttp_request *a_request, char * msg, int len);
 /* Get the status of a request
  */
 
